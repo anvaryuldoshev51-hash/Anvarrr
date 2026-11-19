@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heart Animation</title>
+<style>
+  :root { color-scheme: dark; --bg: #07040a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Yurak: x = 16 sin^3 t, y = 13cos t - 5cos 2t - 2cos 3t - cos 4t
+const points = [];
+for (let lap = 0; lap < 3; lap++) {
+  const scale = 13 + lap * 1.5;   // 3 ta qator: ichkaridan tashqariga
+  for (let i = 0; i < 120; i++) {
+    points.push({ i, scale, k: (scale - 11) / 5 });
+  }
+}
+
+// Nozik yulduz changlari
+const dust = Array.from({ length: 60 }, () => ({
+  x: Math.random(), y: Math.random(), r: Math.random() * 1.1 + 0.3, p: Math.random() * 6.28
+}));
+
+const DRAW = 16000, SPIN = 24000, TURNS = 0;
+function heart(t, scale) {
+  return {
+    x: 16 * Math.pow(Math.sin(t), 3) * scale / 16,
+    y: (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * scale / 16
+  };
+}
+const SERIF = 'Georgia, "Times New Roman", serif';
+const start = performance.now();
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+function frame(now) {
+  const t = now - start;
+  const local = t;
+  const progress = clamp(local / DRAW, 0, 1);
+  const alpha = 1;
+  // Chizilgach "I love you" yozuvlari yurak chizig'i bo'ylab 3 marta aylanadi (yumshoq boshlanib, yumshoq to'xtaydi)
+  const sp = clamp((local - DRAW) / SPIN, 0, 1);
+  const ease = sp < 0.5 ? 2 * sp * sp : 1 - 2 * (1 - sp) * (1 - sp);
+  const shift = ease * TURNS * 120;   // har bir aylanish = 120 nuqta
+
+  // Fon: yumshoq qorong'i gradient
+  const g = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+  g.addColorStop(0, '#1a0c16'); g.addColorStop(1, '#050207');
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  // Yulduz changlari (miltillaydi)
+  for (const d of dust) {
+    ctx.globalAlpha = 0.15 + 0.25 * (0.5 + 0.5 * Math.sin(t / 1400 + d.p));
+    ctx.fillStyle = '#ffe3ea';
+    ctx.beginPath(); ctx.arc(d.x * W, d.y * H, d.r, 0, 6.283); ctx.fill();
+  }
+
+  const size = Math.min(W, H);
+  const after = local - DRAW;
+  const beat = progress >= 1 ? 0.035 * Math.pow(Math.max(0, Math.sin(after / 700)), 2) : 0;
+  const unit = size / 40 * (1 + beat);
+  const cx = W / 2, cy = H / 2 + unit * 0.5;
+  const fontPx = Math.max(7, size / 55);
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'italic ' + fontPx + 'px ' + SERIF;
+  ctx.shadowColor = 'rgba(255,150,180,0.7)';
+  ctx.shadowBlur = 6;
+
+  const total = points.length * progress;
+  const count = Math.ceil(total);
+  for (let i = 0; i < count; i++) {
+    const p = points[i];
+    const a = clamp((total - i) / 25, 0, 1) * alpha;   // har bir harf asta paydo bo'ladi
+    ctx.globalAlpha = a * (0.6 + 0.4 * p.k);
+    // Rose-gold dan och pushti gacha
+    ctx.fillStyle = 'hsl(' + (345 + p.k * 8) + ',' + (80 - p.k * 20) + '%,' + (72 + p.k * 14) + '%)';
+    const q = heart((p.i + shift) * 2 * Math.PI / 120, p.scale);                        
+    ctx.fillText('I love you', cx + q.x * unit, cy - q.y * unit);
+  }
+
+  // Yurak o'rtasidagi klassik yozuv
+  const capA = clamp((progress - 0.75) / 0.25, 0, 1) * alpha;
+  if (capA > 0) {
+    ctx.shadowBlur = 14;
+    ctx.globalAlpha = capA;
+    ctx.fillStyle = '#ffd9e2';
+    ctx.font = 'italic ' + Math.max(18, size / 12) + 'px ' + SERIF;
+    ctx.fillText('I love you', cx, cy - unit * 1.2);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = capA * 0.7;
+    ctx.strokeStyle = '#ffb6c1'; ctx.lineWidth = 1;
+    const lw = size / 6;
+    ctx.beginPath(); ctx.moveTo(cx - lw, cy + unit * 0.6); ctx.lineTo(cx + lw, cy + unit * 0.6); ctx.stroke();
+    ctx.font = Math.max(9, size / 50) + 'px ' + SERIF;
+    ctx.fillStyle = '#e8b4c2';
+    ctx.fillText('F O R E V E R', cx, cy + unit * 2.2);
+  }
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
